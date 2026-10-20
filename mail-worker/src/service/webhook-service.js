@@ -56,7 +56,7 @@ const webhookService = {
 			}
 		}
 
-		console.error(`Webhook 推送失败: ${lastError}`);
+		console.error(`Webhook push failed: ${lastError}`);
 	}
 
 };

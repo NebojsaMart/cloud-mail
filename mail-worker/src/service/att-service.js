@@ -59,7 +59,7 @@ const attService = {
 
 		for (const img of images) {
 
-			//邮件正文base64图片转cid附件
+			//Convert base64 images in the email body to cid attachments
 			const src = img.getAttribute('src');
 			if (src && src.startsWith('data:image')) {
 				const file = fileUtils.base64ToFile(src);
@@ -81,7 +81,7 @@ const attService = {
 				imageDataList.push(attData);
 			}
 
-			//邮件正文站内图片转cid附件
+			//Convert site-hosted images in the email body to cid attachments
 			if (src && (src.startsWith(domainUtils.toOssDomain(r2Domain)) || src.startsWith('attachments/'))) {
 
 				const cid = uuidv4().replace(/-/g, '')
@@ -113,11 +113,11 @@ const attService = {
 			}
 		}
 
-		//查询已有内嵌url图片信息
+		//Look up existing inline image URLs
 		const keys = [...new Set(imageDataList.filter(item => !item.content).map(item => item.key))];
 		const dbImageList  = await this.selectOneByKeys(c, keys);
 
-		//设置给当前附件
+		//Assign to the current attachment
 		await Promise.all(imageDataList.map(async image => {
 			if (image.content) {
 				return;
@@ -244,7 +244,7 @@ const attService = {
 			try {
 				await this.batchDelete(c, delKeyList);
 			} catch (e) {
-				console.error('删除附件文件失败：', e);
+				console.error('Failed to delete attachment file:', e);
 			}
 		}
 

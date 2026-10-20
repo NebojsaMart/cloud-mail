@@ -417,7 +417,7 @@ function oauthPlatform(row) {
   if (row?.platform && oauthPlatformMap[row.platform]) {
     return oauthPlatformMap[row.platform]
   }
-  // 旧数据可能只有 username、无 platform
+  // Old data may only have username, without platform
   if (row?.username) return oauthPlatformMap.linuxdo
   return null
 }
@@ -1313,7 +1313,7 @@ function adjustWidth() {
 
 :deep(.el-table) {
   @media (pointer: coarse) {
-    /* 触屏 */
+    /* Touch screen */
     user-select: none;
   }
 }

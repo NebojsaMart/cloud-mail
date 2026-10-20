@@ -14,8 +14,7 @@
         </a>
     </p>
     <p align="center">
-        <a href="https://skymail.ink">Live Demo</a> · <a href="https://docs.skymail.ink/en/">Deployment Guide</a> ·
-        <a href="/README.md">简体中文</a> | English
+        <a href="https://skymail.ink">Live Demo</a> · <a href="https://docs.skymail.ink/en/">Deployment Guide</a>
     </p>
     <p align="center">
         <a href="https://trendshift.io/repositories/20459" target="_blank" >

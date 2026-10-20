@@ -44,7 +44,7 @@ const dbInit = {
 				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_create_time ON email(create_time)`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 		try {
@@ -55,7 +55,7 @@ const dbInit = {
 				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT '';`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -73,7 +73,7 @@ const dbInit = {
 				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN google_switch INTEGER NOT NULL DEFAULT 1;`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 		try {
@@ -101,7 +101,7 @@ const dbInit = {
 				c.env.db.prepare(`CREATE INDEX IF NOT EXISTS idx_oauth_user_id ON oauth(user_id)`)
 			]);
 		} catch (e) {
-			console.warn(`跳过索引：${e.message}`);
+			console.warn(`Skipping index: ${e.message}`);
 		}
 	},
 
@@ -109,7 +109,7 @@ const dbInit = {
 		try {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN sync_delete INTEGER NOT NULL DEFAULT 0;`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -122,7 +122,7 @@ const dbInit = {
 				await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN ai_code_filter TEXT NOT NULL DEFAULT '';`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 		try {
@@ -132,7 +132,7 @@ const dbInit = {
 				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN black_from TEXT NOT NULL DEFAULT '';`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 	},
@@ -141,7 +141,7 @@ const dbInit = {
 		try {
 			await c.env.db.prepare(`UPDATE setting SET auto_refresh = 5 WHERE auto_refresh = 1;`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -151,7 +151,7 @@ const dbInit = {
 				c.env.db.prepare(`ALTER TABLE account ADD COLUMN sort INTEGER NOT NULL DEFAULT 0;`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -161,7 +161,7 @@ const dbInit = {
 				c.env.db.prepare(`ALTER TABLE setting RENAME COLUMN auto_refresh_time TO auto_refresh;`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -169,7 +169,7 @@ const dbInit = {
 		try {
 			await c.env.db.prepare(`ALTER TABLE account ADD COLUMN all_receive INTEGER NOT NULL DEFAULT 0;`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -178,7 +178,7 @@ const dbInit = {
 		try {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN email_prefix_filter text NOT NULL DEFAULT '';`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 		try {
@@ -187,7 +187,7 @@ const dbInit = {
 				c.env.db.prepare(`UPDATE email SET unread = 1;`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 	},
@@ -210,13 +210,13 @@ const dbInit = {
 				)
 			`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 		try {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN min_email_prefix INTEGER NOT NULL DEFAULT 1;`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 	},
@@ -230,13 +230,13 @@ const dbInit = {
 				c.env.db.prepare(`ALTER TABLE setting ADD COLUMN tg_msg_from TEXT NOT NULL DEFAULT 'only-name';`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 		try {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN tg_msg_text TEXT NOT NULL DEFAULT 'show';`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 
 	},
@@ -252,7 +252,7 @@ const dbInit = {
 				c.env.db.prepare(`DELETE FROM perm WHERE perm_key = 'setting:clean'`)
 			]);
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
@@ -260,15 +260,15 @@ const dbInit = {
 		try {
 			await c.env.db.prepare(`ALTER TABLE setting ADD COLUMN login_domain INTEGER NOT NULL DEFAULT 0;`).run();
 		} catch (e) {
-			console.warn(`跳过字段：${e.message}`);
+			console.warn(`Skipping column: ${e.message}`);
 		}
 	},
 
 	async v1_6DB(c) {
 
-		const noticeContent = '本项目仅供学习交流，禁止用于违法业务\n' +
+		const noticeContent = 'This project is for learning and exchange only; using it for illegal purposes is prohibited\n' +
 			'<br>\n' +
-			'请遵守当地法规，作者不承担任何法律责任'
+			'Please comply with local laws; the author assumes no legal liability'
 
 		const ADD_COLUMN_SQL_LIST = [
 			`ALTER TABLE setting ADD COLUMN reg_verify_count INTEGER NOT NULL DEFAULT 1;`,
@@ -297,7 +297,7 @@ const dbInit = {
 			try {
 				await c.env.db.prepare(sql).run();
 			} catch (e) {
-				console.warn(`跳过字段：${e.message}`);
+				console.warn(`Skipping column: ${e.message}`);
 			}
 		});
 
@@ -322,7 +322,7 @@ const dbInit = {
 		try {
 			await c.env.db.prepare(`ALTER TABLE role ADD COLUMN avail_domain TEXT NOT NULL DEFAULT ''`).run();
 		} catch (e) {
-			console.warn(`跳过字段添加：${e.message}`);
+			console.warn(`Skipping column add: ${e.message}`);
 		}
 	},
 
@@ -339,13 +339,13 @@ const dbInit = {
       )
     `).run();
 
-		// 添加不区分大小写的唯一索引
+		// Add a case-insensitive unique index
 		try {
 			await c.env.db.prepare(`
 				CREATE UNIQUE INDEX IF NOT EXISTS idx_setting_code ON reg_key(code COLLATE NOCASE)
 			`).run();
 		} catch (e) {
-			console.warn(`跳过创建索引：${e.message}`);
+			console.warn(`Skipping index creation: ${e.message}`);
 		}
 
 
@@ -357,7 +357,7 @@ const dbInit = {
         (35,'密钥添加', 'reg-key:add', 33, 2, 1),
         (36,'密钥删除', 'reg-key:delete', 33, 2, 2)`).run();
 		} catch (e) {
-			console.warn(`跳过数据：${e.message}`);
+			console.warn(`Skipping data: ${e.message}`);
 		}
 
 		const ADD_COLUMN_SQL_LIST = [
@@ -371,7 +371,7 @@ const dbInit = {
 			try {
 				await c.env.db.prepare(sql).run();
 			} catch (e) {
-				console.warn(`跳过字段添加：${e.message}`);
+				console.warn(`Skipping column add: ${e.message}`);
 			}
 		});
 
@@ -399,7 +399,7 @@ const dbInit = {
 			try {
 				await c.env.db.prepare(sql).run();
 			} catch (e) {
-				console.warn(`跳过字段添加：${e.message}`);
+				console.warn(`Skipping column add: ${e.message}`);
 			}
 		});
 
@@ -436,7 +436,7 @@ const dbInit = {
 			try {
 				await c.env.db.prepare(sql).run();
 			} catch (e) {
-				console.warn(`跳过字段添加：${e.message}`);
+				console.warn(`Skipping column add: ${e.message}`);
 			}
 		});
 
@@ -451,13 +451,13 @@ const dbInit = {
         (31,'分析页', NULL, 0, 1, 2.1),
         (32,'数据查看', 'analysis:query', 31, 2, 1)`).run();
 		} catch (e) {
-			console.warn(`跳过数据：${e.message}`);
+			console.warn(`Skipping data: ${e.message}`);
 		}
 
 	},
 
 	async v1_1DB(c) {
-		// 添加字段
+		// Add columns
 		const ADD_COLUMN_SQL_LIST = [
 			`ALTER TABLE email ADD COLUMN type INTEGER NOT NULL DEFAULT 0;`,
 			`ALTER TABLE email ADD COLUMN status INTEGER NOT NULL DEFAULT 0;`,
@@ -488,13 +488,13 @@ const dbInit = {
 			try {
 				await c.env.db.prepare(sql).run();
 			} catch (e) {
-				console.warn(`跳过字段添加：${e.message}`);
+				console.warn(`Skipping column add: ${e.message}`);
 			}
 		});
 
 		await Promise.all(promises);
 
-		// 创建 perm 表并初始化
+		// Create and initialize the perm table
 		await c.env.db.prepare(`
       CREATE TABLE IF NOT EXISTS perm (
         perm_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -545,7 +545,7 @@ const dbInit = {
 
 		await c.env.db.prepare(`UPDATE perm SET perm_key = 'setting:clean' WHERE perm_key = 'seting:clear'`).run();
 		await c.env.db.prepare(`DELETE FROM perm WHERE perm_key = 'user:star'`).run();
-		// 创建 role 表并插入默认身份
+		// Create the role table and insert the default role
 		await c.env.db.prepare(`
       CREATE TABLE IF NOT EXISTS role (
         role_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -573,7 +573,7 @@ const dbInit = {
       `).run();
 		}
 
-		// 创建 role_perm 表并初始化数据
+		// Create and initialize the role_perm table
 		await c.env.db.prepare(`
       CREATE TABLE IF NOT EXISTS role_perm (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -600,7 +600,7 @@ const dbInit = {
 	},
 
 	async intDB(c) {
-		// 初始化数据库表结构
+		// Initialize the database schema
 		await c.env.db.prepare(`
 		  CREATE TABLE IF NOT EXISTS email (
 			email_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

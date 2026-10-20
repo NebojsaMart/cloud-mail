@@ -21,15 +21,15 @@ let shadowRoot = null
 function updateContent() {
   if (!shadowRoot) return;
 
-  // 1. 提取 <body> 的 style 属性（如果存在）
+  // 1. Extract the style attribute of <body> (if present)
   const bodyStyleRegex = /<body[^>]*style="([^"]*)"[^>]*>/i;
   const bodyStyleMatch = props.html.match(bodyStyleRegex);
   const bodyStyle = bodyStyleMatch ? bodyStyleMatch[1] : '';
 
-  // 2. 移除 <body> 标签（保留内容）
+  // 2. Remove the <body> tag (keep its content)
   const cleanedHtml = props.html.replace(/<\/?body[^>]*>/gi, '');
 
-  // 3. 将 body 的 style 应用到 .shadow-content
+  // 3. Apply the body style to .shadow-content
   shadowRoot.innerHTML = `
     <style>
       :host {
@@ -63,7 +63,7 @@ function updateContent() {
         width: fit-content;
         height: fit-content;
         min-width: 100%;
-        ${bodyStyle ? bodyStyle : ''} /* 注入 body 的 style */
+        ${bodyStyle ? bodyStyle : ''} /* Inject the body style */
       }
 
       img:not(table img) {

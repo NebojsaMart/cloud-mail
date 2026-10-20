@@ -246,25 +246,25 @@ const emailService = {
 		return orm(c).insert(email).values({ ...params }).returning().get();
 	},
 
-	// 发送入口：公共校验、参数准备、渠道选择和结果汇总。
+	// Send entry point: shared validation, parameter preparation, channel selection and result aggregation.
 	async send(c, params, userId) {
 		let {
-			accountId, //发送账号id
-			name, //发件人名字
-			sendType, //发件类型
-			emailId, //邮件id，如果是回复邮件会带
-			receiveEmail, //收件人邮箱
-			text, //邮件纯文本
-			content, //邮件内容
-			subject, //邮件标题
-			attachments = [] //附件
+			accountId, //Sending account id
+			name, //Sender name
+			sendType, //Send type
+			emailId, //Email id, present when replying
+			receiveEmail, //Recipient addresses
+			text, //Plain-text body
+			content, //Email content
+			subject, //Email subject
+			attachments = [] //Attachments
 		} = params;
 
 		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
 
 		let { imageDataList, html } = await attService.toImageUrlHtml(c, content);
 
-		//判断是否关闭发件功能
+		//Check whether sending is disabled
 		if (send === settingConst.send.CLOSE) {
 			throw new BizError(t('disabledSend'), 403);
 		}
@@ -272,7 +272,7 @@ const emailService = {
 		const userRow = await userService.selectById(c, userId);
 		const roleRow = await roleService.selectById(c, userRow.type);
 
-		//判断接收方是不是全部为站内邮箱
+		//Check whether all recipients are internal addresses
 		const allInternal = receiveEmail.every(email => {
 			const domain = '@' + emailUtils.getDomain(email);
 			return domainList.includes(domain);
@@ -280,19 +280,19 @@ const emailService = {
 
 		if (c.env.admin !== userRow.email) {
 
-			//发件被禁用
+			//Sending is disabled
 			if (roleRow.sendType === 'ban') {
 				throw new BizError(t('bannedSend'), 403);
 			}
 
-			//发件被禁用
+			//Sending is disabled
 			if (roleRow.sendType === 'internal' && !allInternal) {
 				throw new BizError(t('onlyInternalSend'), 403);
 			}
 
 		}
 
-		//如果不是管理员，权限设置了发送次数
+		//If not admin and the role has a send limit
 		if (c.env.admin !== userRow.email && roleRow.sendCount) {
 
 			if (userRow.sendCount >= roleRow.sendCount) {
@@ -318,7 +318,7 @@ const emailService = {
 		}
 
 		if (c.env.admin !== userRow.email) {
-			//用户没有这个域名的使用权限
+			//User has no permission for this domain
 			if(!roleService.hasAvailDomainPerm(roleRow.availDomain, accountRow.email)) {
 				throw new BizError(t('noDomainPermSend'),403)
 			}
@@ -329,12 +329,12 @@ const emailService = {
 		const resendToken = resendTokens[domain];
 		const useCloudflareEmail = !!c.env.email;
 
-		//如果接收方存在站外邮箱，又没有发信服务
+		//If there are external recipients but no sending service
 		if (!useCloudflareEmail && !resendToken && !allInternal) {
 			throw new BizError(t('noSendProvider'));
 		}
 
-		//没有发件人名字自动截取
+		//Derive the sender name if none is given
 		if (!name) {
 			name = emailUtils.getName(accountRow.email);
 		}
@@ -343,7 +343,7 @@ const emailService = {
 			messageId: null
 		};
 
-		//如果是回复邮件
+		//If this is a reply
 		if (sendType === 'reply') {
 
 			emailRow = await this.selectById(c, emailId);
@@ -374,7 +374,7 @@ const emailService = {
 		}
 
 		const separate = params.manyType === 'divide';
-		// sendParams 用于渠道请求，saveParams 保留保存记录所需的账号、权限和附件数据。
+		// sendParams is used for the channel request; saveParams keeps the account, permission and attachment data needed to save records.
 		const context = {
 			separate, allInternal, useCloudflareEmail, resendToken, sendParams,
 			saveParams: {
@@ -386,7 +386,7 @@ const emailService = {
 			}
 		};
 
-		// 全部站内收件人走本地投递；存在站外收件人时优先 CF，其次 Resend。
+		// All-internal recipients use local delivery; with external recipients prefer CF, then Resend.
 		let deliveries;
 		if (allInternal) {
 			deliveries = this.sendInternal(c, context);
@@ -399,7 +399,7 @@ const emailService = {
 		const emailResults = [];
 		let sendError = '';
 
-		// 渠道每完成一组发送并保存记录后返回结果，后续发送失败仍保留已完成部分。
+		// The channel returns results after each batch is sent and saved, so completed parts are kept if later sends fail.
 		for await (const delivery of deliveries) {
 			if (delivery.error) {
 				sendError = delivery.error.message;
@@ -414,7 +414,7 @@ const emailService = {
 			return emailResults;
 		}
 
-		// 分开发送只返回尚未完成的收件人，供前端保留并重试。
+		// Separate sending returns only the unfinished recipients, so the frontend can keep and retry them.
 		const sentRecipients = emailResults.flatMap(item =>
 			JSON.parse(item.recipient).map(recipient => recipient.address)
 		);
@@ -425,7 +425,7 @@ const emailService = {
 		};
 	},
 
-	// 站内发送：普通发送共用一条发件记录，分开发送则每人一条，再写入站内收件箱。
+	// Internal send: normal sending shares one sent record, separate sending creates one per recipient, then writes to internal inboxes.
 	async *sendInternal(c, { separate, sendParams, saveParams }) {
 		const recipientGroups = separate
 			? sendParams.receiveEmail.map(address => [address])
@@ -437,7 +437,7 @@ const emailService = {
 		}
 	},
 
-	// CF 发送：普通发送一次提交所有收件人，分开发送逐人调用并保存结果。
+	// CF send: normal sending submits all recipients at once; separate sending calls per recipient and saves each result.
 	async *sendCloudflare(c, { separate, sendParams, saveParams }) {
 		const recipientGroups = separate
 			? sendParams.receiveEmail.map(address => [address])
@@ -448,7 +448,7 @@ const emailService = {
 				result = await this.sendByCloudflareEmail(c, { ...sendParams, receiveEmail });
 			} catch (error) {
 				if (!separate) throw error;
-				// 分开发送遇到渠道错误即停止，已成功的记录由入口汇总。
+				// Separate sending stops on a channel error; successful records are aggregated by the entry point.
 				yield { error: { message: error.message } };
 				return;
 			}
@@ -459,12 +459,12 @@ const emailService = {
 		}
 	},
 
-	// Resend 分开发送一次最多提交 100 封独立邮件，普通发送仍调用单封接口。
+	// Resend separate sending submits up to 100 individual emails per call; normal sending still uses the single-email API.
 	async *sendResend(c, { separate, resendToken, sendParams, saveParams }) {
 		if (separate && sendParams.receiveEmail.length > 100) {
 			throw new BizError(t('resendRecipientLimit'));
 		}
-		// 批量接口不支持附件，包含正文转换得到的内嵌附件。
+		// The batch API does not support attachments, including inline attachments converted from the body.
 		if (separate && sendParams.attachments.length > 0) {
 			throw new BizError(t('resendSeparateAttachments'));
 		}
@@ -482,7 +482,7 @@ const emailService = {
 			yield { error: result.error };
 			return;
 		}
-		// 严格校验模式下，批量返回的邮件 ID 按提交顺序对应各收件人。
+		// In strict validation mode, the batch response email IDs map to recipients in submission order.
 		const items = separate
 			? sendParams.receiveEmail.map((address, index) => ({
 				receiveEmail: [address], id: result.data.data[index].id
@@ -497,7 +497,7 @@ const emailService = {
 		yield { emails };
 	},
 
-	// 三个渠道共用的发件记录保存：恢复正文图片 URL、保存附件并更新发送计数。
+	// Sent-record saving shared by all three channels: restore body image URLs, save attachments and update send counts.
 	async saveSentEmail(c, params) {
 		const {
 			accountId, userId, name, subject, text, html, sendEmail, receiveEmail,
@@ -539,7 +539,7 @@ const emailService = {
 		const dateStr = dayjs().format('YYYY-MM-DD');
 		let daySendTotal = await c.env.kv.get(kvConst.SEND_DAY_COUNT + dateStr);
 
-		//记录每天发件次数统计
+		//Record daily send count statistics
 		if (!daySendTotal) {
 			await c.env.kv.put(kvConst.SEND_DAY_COUNT + dateStr, JSON.stringify(receiveEmail.length), { expirationTtl: 60 * 60 * 24 });
 		} else  {
@@ -550,7 +550,7 @@ const emailService = {
 		return emailResult;
 	},
 
-	// 附件已在 Resend 处理器中校验，批量接口为每位收件人构造独立邮件。
+	// Attachments were validated in the Resend handler; the batch API builds a separate email per recipient.
 	async sendBatchByResend(resendToken, params) {
 		const resend = new Resend(resendToken);
 		const sendForm = {
@@ -735,15 +735,15 @@ const emailService = {
 		return content;
 	},
 
-	//处理站内邮件发送
+	//Handle internal email delivery
 	async HandleOnSiteEmail(c, receiveEmail, sendEmailData, attList) {
 
 		const { noRecipient  } = await settingService.query(c);
 
-		//查询所有收件人账号信息
+		//Look up all recipient accounts
 		let accountList = await orm(c).select().from(account).where(inArray(account.email, receiveEmail)).all();
 
-		// 对于含+未精确匹配的收件人，获取基础地址账号
+		// For recipients with + that did not match exactly, get the base address account
 		const plusEmails = receiveEmail.filter(
 			e => e.includes('+') && !accountList.some(a => a.email === e)
 		);
@@ -761,19 +761,19 @@ const emailService = {
 			}
 		}
 
-		// 合并精确匹配和基础地址匹配的账号用于权限查询
+		// Merge exact and base-address matches for the permission lookup
 		const allAccounts = [...accountList, ...baseAccounts];
 
-		//查询所有收件人权限身份
+		//Look up the roles of all recipients
 		const userIds = allAccounts.map(accountRow => accountRow.userId);
 		let roleList = await roleService.selectByUserIds(c, userIds);
 
-		//封装数据库准备保存到数据库
+		//Build rows to save to the database
 		const emailDataList = [];
 
 		for (const email of receiveEmail) {
 
-			//把发件人邮件改成收件
+			//Turn the sender email into a received email
 			const emailValues = {...sendEmailData}
 			emailValues.status = emailConst.status.RECEIVE;
 			emailValues.type = emailConst.type.RECEIVE;
@@ -783,16 +783,16 @@ const emailService = {
 
 			let accountRow = allAccounts.find(accountRow => accountRow.email === email);
 
-			// 精确匹配不到时回退到主地址（去掉 +tag）
+			// Fall back to the main address (without +tag) when there is no exact match
 			if (!accountRow && email.includes('+')) {
 				const baseEmail = emailUtils.getBaseEmail(email);
 				accountRow = allAccounts.find(accountRow => accountRow.email === baseEmail);
 			}
 
-			//如果收件人存在就把邮件信息改成收件人的
+			//If the recipient exists, set the email to the recipient
 			if (accountRow) {
 
-				//设置给收件人保存
+				//Assign to the recipient for saving
 				emailValues.userId = accountRow.userId;
 				emailValues.accountId = accountRow.accountId;
 				emailValues.type = emailConst.type.RECEIVE;
@@ -802,7 +802,7 @@ const emailService = {
 
 				let { banEmail, availDomain } = roleRow;
 
-				//如果收件人没有这个域名的使用权限和有邮件拦截，就把邮件改为拒收状态
+				//If the recipient lacks permission for this domain or has email blocking, mark the email as rejected
 				if (email !== c.env.admin) {
 
 					if (!roleService.hasAvailDomainPerm(availDomain, email)) {
@@ -819,13 +819,13 @@ const emailService = {
 
 			} else {
 
-				//设置无收件人邮件信息
+				//Set email info for a missing recipient
 				emailValues.userId = 0;
 				emailValues.accountId = 0;
 				emailValues.type = emailConst.type.RECEIVE;
 				emailValues.status = emailConst.status.NOONE;
 
-				//如果无人收件关闭改为拒收
+				//If no-recipient receiving is disabled, mark as rejected
 				if (noRecipient === settingConst.noRecipient.CLOSE) {
 					emailValues.status = emailConst.status.BOUNCED;
 					emailValues.message = `Recipient not found: <${email}>`;
@@ -837,14 +837,14 @@ const emailService = {
 
 		}
 
-		//保存邮件
+		//Save emails
 		const receiveEmailList = emailDataList.filter(emailRow => emailRow.status === emailConst.status.RECEIVE || emailRow.status === emailConst.status.NOONE);
 
 		for (const emailData of receiveEmailList) {
 
 			const emailRow = await orm(c).insert(email).values(emailData).returning().get();
 
-			//设置附件保存
+			//Save attachments
 			for (const attRow of attList) {
 				const attValues = {...attRow};
 				attValues.emailId = emailRow.emailId;
@@ -861,7 +861,7 @@ const emailService = {
 
 		let status = emailConst.status.DELIVERED;
 		let message = ''
-		//如果有拒收邮件，就把发件人的邮件改成拒收
+		//If any email was rejected, mark the sender's email as rejected
 		if (bouncedEmail) {
 			const messageJson = { message: bouncedEmail.message };
 			message = JSON.stringify(messageJson);
@@ -1029,7 +1029,7 @@ const emailService = {
 			.leftJoin(user, eq(email.userId, user.userId))
 			.where(and(...filters));
 
-		// count 不搜用户时无需 join user
+		// count does not need to join user when not searching by user
 		const queryCount = userEmail
 			? orm(c).select({ total: count() })
 				.from(email)
@@ -1122,7 +1122,7 @@ const emailService = {
 	},
 
 	async completeReceiveAll(c) {
-		// 用 EXISTS 走 status=6 部分索引 + account 主键；避免 IN (SELECT account_id FROM account) 触发全盘扫描
+		// Use EXISTS to hit the status=6 partial index + account primary key; avoids a full scan from IN (SELECT account_id FROM account)
 		await c.env.db.prepare(
 			`UPDATE email
 			 SET status = ${emailConst.status.RECEIVE}
