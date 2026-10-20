@@ -1,20 +1,39 @@
 import BizError from "../error/biz-error";
 import orm from "../entity/orm";
 import {oauth} from "../entity/oauth";
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import userService from "./user-service";
 import loginService from "./login-service";
 import cryptoUtils from "../utils/crypto-utils";
 import settingService from "./setting-service";
 import {t} from '../i18n/i18n';
+import jwtUtils from '../utils/jwt-utils';
+
+const BIND_TICKET_TYP = 'oauth-bind';
+const BIND_TICKET_TTL = 15 * 60;
+const SWITCH_KEYS = { linuxdo: 'linuxdoSwitch', github: 'githubSwitch', google: 'googleSwitch' };
 
 const oauthService = {
 
 	async bindUser(c, params) {
 
-		const { email, oauthUserId, code } = params;
+		const { email, code, bindTicket } = params;
 
-		const oauthRow = await this.getById(c, oauthUserId);
+		// The ticket is only handed out by the OAuth callback, which proves the caller owns this identity
+		const ticket = await jwtUtils.verifyToken(c, bindTicket);
+
+		if (!ticket || ticket.typ !== BIND_TICKET_TYP || !ticket.oauthId) {
+			throw new BizError(t('oauthBindExpired'), 401);
+		}
+
+		const oauthRow = await orm(c).select().from(oauth).where(eq(oauth.oauthId, ticket.oauthId)).get();
+
+		if (!oauthRow) {
+			throw new BizError(t('oauthBindExpired'), 401);
+		}
+
+		const setting = await settingService.query(c);
+		this.assertEnabled(setting, SWITCH_KEYS[oauthRow.platform || 'linuxdo']);
 
 		let userRow = await userService.selectByIdIncludeDel(c, oauthRow.userId);
 
@@ -26,7 +45,7 @@ const oauthService = {
 
 		userRow = await userService.selectByEmail(c, email);
 
-		orm(c).update(oauth).set({ userId: userRow.userId }).where(eq(oauth.oauthUserId, oauthUserId)).run();
+		await orm(c).update(oauth).set({ userId: userRow.userId }).where(eq(oauth.oauthId, oauthRow.oauthId)).run();
 		const jwtToken = await loginService.login(c, { email, password: null }, true);
 
 		return { userInfo: oauthRow, token: jwtToken}
@@ -185,7 +204,8 @@ const oauthService = {
 		const userRow = await userService.selectByIdIncludeDel(c, oauthRow.userId);
 
 		if (!userRow) {
-			return { userInfo: oauthRow, token: null };
+			const bindTicket = await jwtUtils.generateToken(c, { typ: BIND_TICKET_TYP, oauthId: oauthRow.oauthId }, BIND_TICKET_TTL);
+			return { userInfo: oauthRow, token: null, bindTicket };
 		}
 
 		const JwtToken = await loginService.login(c, { email: userRow.email, password: null }, true);
@@ -194,12 +214,24 @@ const oauthService = {
 
 	async saveUser(c, userInfo) {
 
-		const userInfoRow = await this.getById(c, userInfo.oauthUserId);
+		// Only copy known profile columns; the provider's raw JSON must never set userId or oauthId
+		const row = {
+			oauthUserId: userInfo.oauthUserId,
+			username: userInfo.username,
+			name: userInfo.name,
+			avatar: userInfo.avatar,
+			active: userInfo.active,
+			trustLevel: userInfo.trustLevel ?? userInfo.trust_level,
+			silenced: userInfo.silenced,
+			platform: userInfo.platform
+		};
+
+		const userInfoRow = await this.getById(c, userInfo.oauthUserId, userInfo.platform);
 
 		if (!userInfoRow) {
-			return await orm(c).insert(oauth).values(userInfo).returning().get();
+			return await orm(c).insert(oauth).values(row).returning().get();
 		} else {
-			return await orm(c).update(oauth).set(userInfo).where(eq(oauth.oauthUserId, userInfo.oauthUserId)).returning().get();
+			return await orm(c).update(oauth).set(row).where(eq(oauth.oauthId, userInfoRow.oauthId)).returning().get();
 		}
 
 	},
@@ -210,8 +242,12 @@ const oauthService = {
 		}
 	},
 
-	async getById(c, oauthUserId) {
-		return await orm(c).select().from(oauth).where(eq(oauth.oauthUserId, oauthUserId)).get();
+	// Provider ids are only unique per provider; rows saved before the platform column existed are Linux.do
+	async getById(c, oauthUserId, platform) {
+		const platformCond = platform === 'linuxdo'
+			? or(eq(oauth.platform, platform), isNull(oauth.platform))
+			: eq(oauth.platform, platform);
+		return await orm(c).select().from(oauth).where(and(eq(oauth.oauthUserId, oauthUserId), platformCond)).get();
 	},
 
 	async deleteByUserId(c, userId) {

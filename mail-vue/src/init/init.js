@@ -6,6 +6,7 @@ import {permsToRouter} from "@/perm/perm.js";
 import router from "@/router";
 import {websiteConfig} from "@/request/setting.js";
 import i18n from "@/i18n/index.js";
+import {isLoggedIn} from "@/utils/session.js";
 
 export async function init() {
     document.title = '\u200B'
@@ -14,7 +15,7 @@ export async function init() {
     const userStore = useUserStore();
     const accountStore = useAccountStore();
 
-    const token = localStorage.getItem('token');
+    const token = isLoggedIn();
     if (!settingStore.lang) {
         let lang = navigator.language.split('-')[0]
         lang = lang === 'zh' ? lang : 'en'

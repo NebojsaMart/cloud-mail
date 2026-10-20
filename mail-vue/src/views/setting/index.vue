@@ -53,7 +53,8 @@
     </div>
     <el-dialog v-model="pwdShow" :title="$t('changePassword')" width="340">
       <div class="update-pwd">
-        <el-input type="password" :placeholder="$t('newPassword')" v-model="form.password" autocomplete="off" @keyup.enter="submitPwd"/>
+        <el-input v-if="!userStore.user.oauth" type="password" :placeholder="$t('currentPassword')" v-model="form.oldPassword" autocomplete="current-password" @keyup.enter="submitPwd"/>
+        <el-input type="password" :placeholder="$t('newPassword')" v-model="form.password" autocomplete="new-password" @keyup.enter="submitPwd"/>
         <el-input type="password" :placeholder="$t('confirmPassword')" v-model="form.newPwd" autocomplete="off" @keyup.enter="submitPwd"/>
         <el-button type="primary" :loading="setPwdLoading" @click="submitPwd">{{$t('save')}}</el-button>
       </div>
@@ -61,6 +62,7 @@
   </div>
 </template>
 <script setup>
+import {clearSession} from "@/utils/session.js";
 import {reactive, ref, defineOptions} from 'vue'
 import {resetPassword, userDelete} from "@/request/my.js";
 import {useUserStore} from "@/store/user.js";
@@ -135,6 +137,7 @@ function changeLang(lang) {
 
 const pwdShow = ref(false)
 const form = reactive({
+  oldPassword: '',
   password: '',
   newPwd: '',
 })
@@ -146,7 +149,7 @@ const deleteConfirm = () => {
     type: 'warning'
   }).then(() => {
     userDelete().then(() => {
-      localStorage.removeItem('token');
+      clearSession();
       router.replace('/login');
       ElMessage({
         message: t('delSuccessMsg'),
@@ -161,6 +164,15 @@ const deleteConfirm = () => {
 function submitPwd() {
 
   if (setPwdLoading.value) return
+
+  if (!userStore.user.oauth && !form.oldPassword) {
+    ElMessage({
+      message: t('emptyCurrentPwdMsg'),
+      type: 'error',
+      plain: true,
+    })
+    return
+  }
 
   if (!form.password) {
     ElMessage({
@@ -190,7 +202,7 @@ function submitPwd() {
   }
 
   setPwdLoading.value = true
-  resetPassword(form.password).then(() => {
+  resetPassword(form.password, form.oldPassword).then(() => {
     ElMessage({
       message: t('saveSuccessMsg'),
       type: 'success',
@@ -198,6 +210,7 @@ function submitPwd() {
     })
     pwdShow.value = false
     setPwdLoading.value = false
+    form.oldPassword = ''
     form.password = ''
     form.newPwd = ''
   }).catch(() => {

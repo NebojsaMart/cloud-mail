@@ -5,118 +5,58 @@ import KvConst from '../const/kv-const';
 import dayjs from 'dayjs';
 import userService from '../service/user-service';
 import permService from '../service/perm-service';
+import publicService from '../service/public-service';
 import { t } from '../i18n/i18n'
 import app from '../hono/hono';
+import sessionCookie from './session-cookie';
 
-const exclude = [
+// Routes reachable without a login session; every other route requires one (deny by default)
+const PUBLIC_ROUTES = new Set([
 	'/login',
 	'/register',
-	'/oss',
 	'/setting/websiteConfig',
 	'/webhooks',
 	'/init',
 	'/public/genToken',
-	'/telegram',
-	'/test',
-	'/oauth'
+	'/oauth/linuxDo/login',
+	'/oauth/github/login',
+	'/oauth/google/login',
+	'/oauth/bindUser'
+]);
+
+const PUBLIC_PREFIXES = [
+	'/oss/',
+	'/init/',
+	'/telegram/getEmail/'
 ];
 
-const requirePerms = [
-	'/email/send',
-	'/email/delete',
-	'/account/list',
-	'/account/delete',
-	'/account/add',
-	'/my/delete',
-	'/analysis/echarts',
-	'/role/add',
-	'/role/list',
-	'/role/delete',
-	'/role/tree',
-	'/role/set',
-	'/role/setDefault',
-	'/allEmail/list',
-	'/allEmail/delete',
-	'/allEmail/batchDelete',
-	'/allEmail/latest',
-	'/setting/setBackground',
-	'/setting/deleteBackground',
-	'/setting/set',
-	'/setting/query',
-	'/setting/setBlacklist',
-	'/user/delete',
-	'/user/setPwd',
-	'/user/setStatus',
-	'/user/setType',
-	'/user/list',
-	'/user/restore',
-	'/user/resetSendCount',
-	'/user/add',
-	'/user/deleteAccount',
-	'/user/allAccount',
-	'/regKey/add',
-	'/regKey/list',
-	'/regKey/delete',
-	'/regKey/clearNotUse',
-	'/regKey/history'
-];
-
-const premKey = {
-	'email:delete': ['/email/delete'],
-	'email:send': ['/email/send'],
-	'account:add': ['/account/add'],
-	'account:query': ['/account/list'],
-	'account:delete': ['/account/delete'],
-	'my:delete': ['/my/delete'],
-	'role:add': ['/role/add'],
-	'role:set': ['/role/set','/role/setDefault'],
-	'role:query': ['/role/list', '/role/tree'],
-	'role:delete': ['/role/delete'],
-	'user:query': ['/user/list','/user/allAccount'],
-	'user:add': ['/user/add'],
-	'user:reset-send': ['/user/resetSendCount'],
-	'user:set-pwd': ['/user/setPwd'],
-	'user:set-status': ['/user/setStatus', '/user/restore'],
-	'user:set-type': ['/user/setType'],
-	'user:delete': ['/user/delete','/user/deleteAccount'],
-	'all-email:query': ['/allEmail/list','/allEmail/latest'],
-	'all-email:delete': ['/allEmail/delete','/allEmail/batchDelete'],
-	'setting:query': ['/setting/query'],
-	'setting:set': ['/setting/set', '/setting/setBackground','/setting/deleteBackground','/setting/setBlacklist'],
-	'analysis:query': ['/analysis/echarts'],
-	'reg-key:add': ['/regKey/add'],
-	'reg-key:query': ['/regKey/list','/regKey/history'],
-	'reg-key:delete': ['/regKey/delete','/regKey/clearNotUse'],
-};
+const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
 app.use('*', async (c, next) => {
 
 	const path = c.req.path;
 
-	const index = exclude.findIndex(item => {
-		return path.startsWith(item);
-	});
-
-	if (index > -1) {
+	if (PUBLIC_ROUTES.has(path) || PUBLIC_PREFIXES.some(prefix => path.startsWith(prefix))) {
 		return await next();
 	}
 
-	if (path.startsWith('/public')) {
-
-		const userPublicToken = await c.env.kv.get(KvConst.PUBLIC_KEY);
-		const publicToken = c.req.header(constant.TOKEN_HEADER);
-		if (publicToken !== userPublicToken) {
+	if (path.startsWith('/public/')) {
+		if (!await publicService.verifyToken(c, c.req.header(constant.TOKEN_HEADER))) {
 			throw new BizError(t('publicTokenFail'), 401);
 		}
 		return await next();
 	}
 
+	const { jwt, fromCookie } = sessionCookie.read(c);
 
-	const jwt = c.req.header(constant.TOKEN_HEADER);
+	if (fromCookie && !SAFE_METHODS.includes(c.req.method) && !sessionCookie.isSameOrigin(c)) {
+		throw new BizError(t('unauthorized'), 403);
+	}
 
 	const result = await jwtUtils.verifyToken(c, jwt);
 
-	if (!result) {
+	// Tokens with a typ claim (Telegram links, OAuth bind tickets) are not login sessions
+	if (!result || result.typ || !result.userId || !result.token) {
 		throw new BizError(t('authExpired'), 401);
 	}
 
@@ -131,26 +71,6 @@ app.use('*', async (c, next) => {
 		throw new BizError(t('authExpired'), 401);
 	}
 
-	const permIndex = requirePerms.findIndex(item => {
-		return path.startsWith(item);
-	});
-
-	if (permIndex > -1) {
-
-		const permKeys = await permService.userPermKeys(c, authInfo.user.userId);
-
-		const userPaths = permKeyToPaths(permKeys);
-
-		const userPermIndex = userPaths.findIndex(item => {
-			return path.startsWith(item);
-		});
-
-		if (userPermIndex === -1 && authInfo.user.email !== c.env.admin) {
-			throw new BizError(t('unauthorized'), 403);
-		}
-
-	}
-
 	const refreshTime = dayjs(authInfo.refreshTime).startOf('day');
 	const nowTime = dayjs().startOf('day')
 
@@ -160,20 +80,24 @@ app.use('*', async (c, next) => {
 		await c.env.kv.put(KvConst.AUTH_INFO + userId, JSON.stringify(authInfo), { expirationTtl: constant.TOKEN_EXPIRE });
 	}
 
-	c.set('user',authInfo.user)
+	c.set('user', authInfo.user)
+	c.set('token', token)
 
 	return await next();
 });
 
-function permKeyToPaths(permKeys) {
+// Route-level permission check; the admin account (env.admin) has every permission
+export function requirePerm(permKey) {
+	return async (c, next) => {
+		const user = c.get('user');
 
-	const paths = [];
-
-	for (const key of permKeys) {
-		const routeList = premKey[key];
-		if (routeList && Array.isArray(routeList)) {
-			paths.push(...routeList);
+		if (user.email !== c.env.admin) {
+			const permKeys = await permService.userPermKeys(c, user.userId);
+			if (!permKeys.includes(permKey)) {
+				throw new BizError(t('unauthorized'), 403);
+			}
 		}
-	}
-	return paths;
+
+		return await next();
+	};
 }

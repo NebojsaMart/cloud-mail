@@ -5,7 +5,7 @@ import { desc, count, eq, and, ne, isNotNull } from 'drizzle-orm';
 import { emailConst } from '../const/entity-const';
 import kvConst from '../const/kv-const';
 import dayjs from 'dayjs';
-import { toUtc } from '../utils/date-uitil';
+import { toUtc } from '../utils/date-util';
 const analysisService = {
 
 	async echarts(c, params) {

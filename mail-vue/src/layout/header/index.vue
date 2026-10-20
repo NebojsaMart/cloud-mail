@@ -73,6 +73,7 @@
 </template>
 
 <script setup>
+import {clearSession} from "@/utils/session.js";
 import router from "@/router";
 import hanburger from '@/components/hamburger/index.vue'
 import {logout} from "@/request/login.js";
@@ -243,7 +244,7 @@ function changeAside() {
 function clickLogout() {
   logoutLoading.value = true
   logout().then(() => {
-    localStorage.removeItem("token")
+    clearSession();
     router.replace('/login')
   }).finally(() => {
     logoutLoading.value = false

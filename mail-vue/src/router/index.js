@@ -1,3 +1,4 @@
+import {isLoggedIn} from "@/utils/session.js";
 import {createRouter, createWebHistory} from 'vue-router'
 import NProgress from 'nprogress';
 import {useUiStore} from "@/store/ui.js";
@@ -98,7 +99,7 @@ router.beforeEach((to, from, next) => {
         }, 100)
     }
 
-    const token = localStorage.getItem('token')
+    const token = isLoggedIn()
 
     if (!token && !to.path.startsWith('/login')) {
         return next({name: 'login'})

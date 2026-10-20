@@ -2,7 +2,6 @@ import BizError from '../error/biz-error';
 import orm from '../entity/orm';
 import { v4 as uuidv4 } from 'uuid';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
-import saltHashUtils from '../utils/crypto-utils';
 import cryptoUtils from '../utils/crypto-utils';
 import emailUtils from '../utils/email-utils';
 import roleService from './role-service';
@@ -14,6 +13,10 @@ import { isDel, roleConst } from '../const/entity-const';
 import email from '../entity/email';
 import userService from './user-service';
 import KvConst from '../const/kv-const';
+import loginLimitService from './login-limit-service';
+
+const DEFAULT_TOKEN_DAYS = 90;
+const MAX_TOKEN_DAYS = 365;
 
 const publicService = {
 
@@ -108,7 +111,7 @@ const publicService = {
 				throw new BizError(t('notEmailDomain'));
 			}
 
-			const { salt, hash } = await saltHashUtils.hashPassword(
+			const { salt, hash } = await cryptoUtils.hashPassword(
 				emailRow.password || cryptoUtils.genRandomPwd()
 			);
 
@@ -136,13 +139,12 @@ const publicService = {
 			}
 
 			const userSql = `INSERT INTO user (email, password, salt, type, os, browser, active_ip, create_ip, device, active_time, create_time)
-			VALUES ('${email}', '${hash}', '${salt}', '${type}', '${os}', '${browser}', '${activeIp}', '${activeIp}', '${device}', '${activeTime}', '${activeTime}')`
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-			const accountSql = `INSERT INTO account (email, name, user_id)
-			VALUES ('${email}', '${emailUtils.getName(email)}', 0);`;
+			const accountSql = `INSERT INTO account (email, name, user_id) VALUES (?, ?, 0);`;
 
-			userList.push(c.env.db.prepare(userSql));
-			userList.push(c.env.db.prepare(accountSql));
+			userList.push(c.env.db.prepare(userSql).bind(email, hash, salt, type, os, browser, activeIp, activeIp, device, activeTime, activeTime));
+			userList.push(c.env.db.prepare(accountSql).bind(email, emailUtils.getName(email)));
 
 		}
 
@@ -164,30 +166,53 @@ const publicService = {
 
 		await this.verifyUser(c, params)
 
+		const expireDays = Math.min(Math.max(Number(params.expireDays) || DEFAULT_TOKEN_DAYS, 1), MAX_TOKEN_DAYS);
+
 		const uuid = uuidv4();
 
-		await c.env.kv.put(KvConst.PUBLIC_KEY, uuid);
+		// Only the hash is stored, so reading KV doesn't reveal a usable token
+		await c.env.kv.put(KvConst.PUBLIC_KEY, await this.hashToken(uuid), { expirationTtl: expireDays * 86400 });
 
-		return {token: uuid}
+		return { token: uuid, expireTime: dayjs().add(expireDays, 'day').toISOString() }
+	},
+
+	async verifyToken(c, token) {
+
+		const stored = await c.env.kv.get(KvConst.PUBLIC_KEY);
+
+		if (!stored || !token) {
+			return false;
+		}
+
+		// Tokens generated before hashing was added are stored as the plain uuid
+		const expected = /^[0-9a-f]{64}$/.test(stored) ? await this.hashToken(token) : token;
+
+		return cryptoUtils.timingSafeEqual(expected, stored);
+	},
+
+	async hashToken(token) {
+		const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+		return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
 	},
 
 	async verifyUser(c, params) {
 
 		const { email, password } = params
 
-		const userRow = await userService.selectByEmailIncludeDel(c, email);
+		await loginLimitService.assertAllowed(c, 'public');
 
-		if (email !== c.env.admin) {
-			throw new BizError(t('notAdmin'));
+		const userRow = email === c.env.admin ? await userService.selectByEmailIncludeDel(c, email) : null;
+
+		const pwdOk = userRow
+			&& userRow.isDel !== isDel.DELETE
+			&& await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password);
+
+		if (!pwdOk) {
+			await loginLimitService.recordFail(c, 'public');
+			throw new BizError(t('loginFail'));
 		}
 
-		if (!userRow || userRow.isDel === isDel.DELETE) {
-			throw new BizError(t('notExistUser'));
-		}
-
-		if (!await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password)) {
-			throw new BizError(t('IncorrectPwd'));
-		}
+		await loginLimitService.clear(c, 'public');
 	}
 
 }

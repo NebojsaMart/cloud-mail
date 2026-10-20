@@ -4,7 +4,6 @@ import orm from '../entity/orm';
 import user from '../entity/user';
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { emailConst, isDel, roleConst, settingConst, userConst } from '../const/entity-const';
-import kvConst from '../const/kv-const';
 import KvConst from '../const/kv-const';
 import cryptoUtils from '../utils/crypto-utils';
 import emailService from './email-service';
@@ -12,12 +11,12 @@ import dayjs from 'dayjs';
 import permService from './perm-service';
 import roleService from './role-service';
 import emailUtils from '../utils/email-utils';
-import saltHashUtils from '../utils/crypto-utils';
 import constant from '../const/constant';
 import { t } from '../i18n/i18n'
 import reqUtils from '../utils/req-utils';
 import {oauth} from "../entity/oauth";
 import oauthService from "./oauth-service";
+import userContext from '../security/user-context';
 import settingService from './setting-service';
 import starService from './star-service';
 
@@ -31,10 +30,11 @@ const userService = {
 			throw new BizError(t('authExpired'), 401);
 		}
 
-		const [account, roleRow, permKeys] = await Promise.all([
+		const [account, roleRow, permKeys, oauthRow] = await Promise.all([
 			accountService.selectByEmailIncludeDel(c, userRow.email),
 			roleService.selectById(c, userRow.type),
-			userRow.email === c.env.admin ? Promise.resolve(['*']) : permService.userPermKeys(c, userId)
+			userRow.email === c.env.admin ? Promise.resolve(['*']) : permService.userPermKeys(c, userId),
+			orm(c).select().from(oauth).where(eq(oauth.userId, userId)).get()
 		]);
 
 		const user = {};
@@ -46,6 +46,7 @@ const userService = {
 		user.permKeys = permKeys;
 		user.role = roleRow;
 		user.type = userRow.type;
+		user.oauth = !!oauthRow;
 
 		if (c.env.admin === userRow.email) {
 			user.role = constant.ADMIN_ROLE
@@ -58,11 +59,38 @@ const userService = {
 
 	async resetPassword(c, params, userId) {
 
-		const { password } = params;
+		const { password, oldPassword } = params;
 
-		if (password.length < 6) {
+		const userRow = await this.selectById(c, userId);
+
+		// OAuth-created users were given a random password they never saw, so they can't supply it
+		const oauthRow = await orm(c).select().from(oauth).where(eq(oauth.userId, userId)).get();
+
+		if (!oauthRow && !await cryptoUtils.verifyPassword(oldPassword, userRow.salt, userRow.password)) {
+			throw new BizError(t('IncorrectPwd'));
+		}
+
+		await this.updatePassword(c, userId, password);
+
+		// Keep only the current session; every other token for this user stops working
+		const token = await userContext.getToken(c);
+		const authInfo = await c.env.kv.get(KvConst.AUTH_INFO + userId, { type: 'json' });
+		if (authInfo) {
+			authInfo.tokens = authInfo.tokens.filter(item => item === token);
+			await c.env.kv.put(KvConst.AUTH_INFO + userId, JSON.stringify(authInfo), { expirationTtl: constant.TOKEN_EXPIRE });
+		}
+	},
+
+	async updatePassword(c, userId, password) {
+
+		if (typeof password !== 'string' || password.length < 6) {
 			throw new BizError(t('pwdMinLength'));
 		}
+
+		if (password.length > 30) {
+			throw new BizError(t('pwdLengthLimit'));
+		}
+
 		const { salt, hash } = await cryptoUtils.hashPassword(password);
 		await orm(c).update(user).set({ password: hash, salt: salt }).where(eq(user.userId, userId)).run();
 	},
@@ -100,11 +128,11 @@ const userService = {
 		const { syncDelete } = await settingService.query(c);
 		if (syncDelete === settingConst.syncDelete.OPEN) {
 			await this.physicsDelete(c, { userIds: String(userId) });
-			await c.env.kv.delete(kvConst.AUTH_INFO + userId)
+			await c.env.kv.delete(KvConst.AUTH_INFO + userId)
 			return;
 		}
 		await orm(c).update(user).set({ isDel: isDel.DELETE }).where(eq(user.userId, userId)).run();
-		await c.env.kv.delete(kvConst.AUTH_INFO + userId)
+		await c.env.kv.delete(KvConst.AUTH_INFO + userId)
 	},
 
 	async physicsDelete(c, params) {
@@ -268,7 +296,7 @@ const userService = {
 	async setPwd(c, params) {
 
 		const { password, userId } = params;
-		await this.resetPassword(c, { password }, userId);
+		await this.updatePassword(c, userId, password);
 		await c.env.kv.delete(KvConst.AUTH_INFO + userId);
 	},
 
@@ -355,7 +383,7 @@ const userService = {
 			throw new BizError(t('roleNotExist'));
 		}
 
-		const { salt, hash } = await saltHashUtils.hashPassword(password);
+		const { salt, hash } = await cryptoUtils.hashPassword(password);
 
 		const userId = await userService.insert(c, { email, password: hash, salt, type });
 

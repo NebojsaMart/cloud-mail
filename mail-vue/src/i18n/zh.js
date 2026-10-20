@@ -19,6 +19,8 @@ const zh = {
     deleteUser: '删除账户',
     deleteUserBtn: '删除账户',
     changePassword: '修改密码',
+    currentPassword: '当前密码',
+    emptyCurrentPwdMsg: '请输入当前密码',
     newPassword: '新的密码',
     confirmPassword: '确认密码',
     add: '添加',

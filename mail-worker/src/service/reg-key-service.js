@@ -3,7 +3,7 @@ import regKey from '../entity/reg-key';
 import { inArray, like, eq, desc, sql, or } from 'drizzle-orm';
 import roleService from './role-service';
 import BizError from '../error/biz-error';
-import { formatDetailDate, toUtc } from '../utils/date-uitil';
+import { formatDetailDate, toUtc } from '../utils/date-util';
 import userService from './user-service';
 import { t } from '../i18n/i18n.js';
 

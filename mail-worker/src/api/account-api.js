@@ -1,19 +1,20 @@
 import app from '../hono/hono';
+import { requirePerm } from '../security/security';
 import accountService from '../service/account-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 
-app.get('/account/list', async (c) => {
+app.get('/account/list', requirePerm('account:query'), async (c) => {
 	const list = await accountService.list(c, c.req.query(), userContext.getUserId(c));
 	return c.json(result.ok(list));
 });
 
-app.delete('/account/delete', async (c) => {
+app.delete('/account/delete', requirePerm('account:delete'), async (c) => {
 	await accountService.delete(c, c.req.query(), userContext.getUserId(c));
 	return c.json(result.ok());
 });
 
-app.post('/account/add', async (c) => {
+app.post('/account/add', requirePerm('account:add'), async (c) => {
 	const account = await accountService.add(c, await c.req.json(), userContext.getUserId(c));
 	return c.json(result.ok(account));
 });

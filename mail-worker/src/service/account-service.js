@@ -261,10 +261,9 @@ const accountService = {
 	},
 
 	async setAllReceive(c, params, userId) {
-		let a = null
 		const { accountId } = params;
 		const accountRow = await this.selectById(c, accountId);
-		if (accountRow.userId !== userId) {
+		if (!accountRow || accountRow.userId !== userId) {
 			return;
 		}
 		await orm(c).update(account).set({ allReceive: accountConst.allReceive.CLOSE }).where(eq(account.userId, userId)).run();

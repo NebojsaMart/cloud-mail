@@ -1,0 +1,6 @@
+# Copy to .dev.vars for "pnpm dev". .dev.vars is git-ignored; never commit real values.
+# Generate values with: openssl rand -hex 32
+jwt_secret=replace-with-a-long-random-string
+init_secret=replace-with-another-long-random-string
+# Resend webhook signing secret (Resend dashboard > Webhooks). Without it, delivery status webhooks are rejected.
+resend_webhook_secret=

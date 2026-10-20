@@ -6,6 +6,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import DOMPurify from 'dompurify'
 
 const props = defineProps({
   html: {
@@ -21,13 +22,18 @@ let shadowRoot = null
 function updateContent() {
   if (!shadowRoot) return;
 
-  // 1. Extract the style attribute of <body> (if present)
+  // 1. Extract the style attribute of <body> (if present); strip characters that could close the <style> block below
   const bodyStyleRegex = /<body[^>]*style="([^"]*)"[^>]*>/i;
   const bodyStyleMatch = props.html.match(bodyStyleRegex);
-  const bodyStyle = bodyStyleMatch ? bodyStyleMatch[1] : '';
+  const bodyStyle = bodyStyleMatch ? bodyStyleMatch[1].replace(/[<>{}]/g, '') : '';
 
-  // 2. Remove the <body> tag (keep its content)
-  const cleanedHtml = props.html.replace(/<\/?body[^>]*>/gi, '');
+  // 2. Remove the <html>, <head> and <body> tags (keep their content, including <style> blocks in <head>),
+  //    then sanitize: email HTML comes from any sender and shadow DOM does not stop scripts
+  const cleanedHtml = DOMPurify.sanitize(props.html.replace(/<\/?(html|head|body)[^>]*>/gi, ''), {
+    FORCE_BODY: true,
+    ADD_ATTR: ['target'],
+    FORBID_TAGS: ['form', 'input', 'button', 'textarea', 'select']
+  });
 
   // 3. Apply the body style to .shadow-content
   shadowRoot.innerHTML = `

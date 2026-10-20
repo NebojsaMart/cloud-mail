@@ -1,3 +1,5 @@
+import objHeaderUtils from '../utils/obj-header-utils';
+
 const kvObjService = {
 
 	async putObj(c, key, content, metadata) {
@@ -24,17 +26,17 @@ const kvObjService = {
 		}
 
 		return new Response(obj.value, {
-			headers: {
-				'Content-Type': obj.metadata?.contentType || 'application/octet-stream',
-				'Content-Disposition': obj.metadata?.contentDisposition || null,
-				'Cache-Control': obj.metadata?.cacheControl || null
-			}
+			headers: objHeaderUtils.build({
+				contentType: obj.metadata?.contentType,
+				contentDisposition: obj.metadata?.contentDisposition,
+				cacheControl: obj.metadata?.cacheControl
+			})
 		});
 	},
 
 	async toObjResp(c, key) {
 
-		return await this.getObj(c, key);
+		return await this.getObj(c, key) || new Response('Not found', { status: 404 });
 
 	}
 

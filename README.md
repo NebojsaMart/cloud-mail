@@ -3,29 +3,12 @@
     <h1 align="center">Cloud Mail</h1>
     <p align="center"><strong>All-in-one email service platform built on Cloudflare</strong></p>
     <p align="center">
-        <a href="https://www.cloudflare.com/" target="_blank">
-            <img src="https://img.shields.io/badge/Cloudflare-F38020?labelColor=F38020&amp;color=F38020&amp;logo=cloudflare&amp;logoColor=white" alt="Cloudflare" />
-        </a>
-        <a href="https://github.com/maillab/cloud-mail/releases" target="_blank" >
-            <img src="https://img.shields.io/github/v/release/maillab/cloud-mail?logo=github&amp;logoColor=white" alt="releases" />
-        </a>
-        <a href="https://github.com/maillab/cloud-mail/tree/main?tab=MIT-1-ov-file" target="_blank" >
-            <img src="https://img.shields.io/badge/license-MIT-green" />
-        </a>  
-    </p>
-    <p align="center" >
-        <a href="https://skymail.ink">Live Demo</a> · <a href="https://docs.skymail.ink/en/">Deployment Guide</a>
-    </p>
-    <p align="center">
-        <a href="https://trendshift.io/repositories/20459" target="_blank" >
-            <img src="https://trendshift.io/api/badge/repositories/20459" alt="trendshift" >
-        </a>
-        <a href="https://hellogithub.com/repository/1b1da1f9ae4c4175baa3d762b4e0ba41" target="_blank">
-            <img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=1b1da1f9ae4c4175baa3d762b4e0ba41" alt="HelloGitHub" />
-        </a>
+        <img src="https://img.shields.io/badge/Cloudflare-F38020?labelColor=F38020&amp;color=F38020&amp;logo=cloudflare&amp;logoColor=white" alt="Cloudflare" />
+        <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license" />
     </p>
 </p>
 
+> This is a fork of [maillab/cloud-mail](https://github.com/maillab/cloud-mail) with security fixes and English-only docs. The upstream [deployment guide](https://docs.skymail.ink/en/) still applies, with the extra configuration listed under [Configuration](#configuration).
 
 ## Description
 
@@ -33,28 +16,10 @@ With only one domain, you can create multiple different email addresses, similar
 
 ## Project Showcase
 
-| ![](/doc/demo/demo.jpg)  | ![](/doc/demo/demo1.jpg) |
-|--------------------------|--------------------------|
-| ![](/doc/demo/demo2.jpg) | ![](/doc/demo/demo3.jpg) |
+| ![](/doc/demo/en/demo.jpg)  | ![](/doc/demo/en/demo1.jpg) |
+|-----------------------------|-----------------------------|
+| ![](/doc/demo/en/demo2.jpg) | ![](/doc/demo/en/demo3.jpg) |
 
-
-## Recommended Project
-
-<table>
-  <tr>
-    <td valign="middle">
-      <a href="https://github.com/pixtalelab/pixtale">
-        <img width="30" src="https://img.022335.xyz/logo.png" alt="Pixtale" align="middle">
-      </a>
-    </td>
-    <td valign="middle">
-      <a href="https://github.com/pixtalelab/pixtale">Pixtale</a>
-    </td>
-    <td valign="middle">
-      A self-hosted cloud storage photo album app
-    </td>
-  </tr>
-</table>
 
 ## Features
 
@@ -125,7 +90,7 @@ cloud-mail
 │   │   ├── template               # Message templates
 │   │   ├── utils                  # Utilities
 │   │   └── index.js               # Entry point
-│   ├── pageckge.json              # Project dependencies
+│   ├── package.json               # Project dependencies
 │   └── wrangler.toml              # Project configuration
 │
 ├── mail-vue                       # Frontend Vue project
@@ -149,14 +114,58 @@ cloud-mail
 └── └── env.release                # Project configuration
 ```
 
+## Local development
+
+Requirements: Node.js 20+ and pnpm 11 (`npm i -g pnpm@11`, or use `npx pnpm@11`).
+
+```bash
+# Backend (Worker) on http://127.0.0.1:8787
+cd mail-worker
+pnpm install
+cp .dev.vars.example .dev.vars   # then fill in the secrets
+pnpm dev
+
+# One-time database setup (local D1 and KV are created automatically)
+curl -X POST -H "X-Init-Secret: <init_secret from .dev.vars>" http://127.0.0.1:8787/api/init
+
+# Frontend (Vite) on http://localhost:3001; /api is proxied to the local Worker
+cd ../mail-vue
+pnpm install
+pnpm dev
+```
+
+Then register the admin address from `wrangler-dev.toml` (`admin@example.com` by default) on the login page.
+
+Tests: `cd mail-worker && pnpm test`.
+
+## Configuration
+
+Worker settings are Wrangler `vars`. Put secrets in `.dev.vars` locally and set them with `wrangler secret put <name>` (or GitHub repository secrets for the deploy workflow) in production; never commit them.
+
+| Name | Required | Description |
+|---|---|---|
+| `domain` | yes | JSON array of email domains, e.g. `["example.com"]` |
+| `admin` | yes | Admin email address; this account bypasses all permission checks |
+| `jwt_secret` | yes, secret | Signs login tokens. Use a long random value (`openssl rand -hex 32`) |
+| `init_secret` | recommended, secret | Protects `/api/init`. Falls back to `jwt_secret` if unset |
+| `resend_webhook_secret` | if using Resend webhooks, secret | Signing secret (`whsec_...`) from the Resend dashboard. Webhooks are rejected without it. Comma-separate several values for several Resend accounts |
+| `cors_origin` | no | Extra origins allowed to call the API with the session cookie. Not needed normally: the frontend is served from the same origin and the dev server proxies `/api` |
+| `ai_model` | no | Workers AI model for verification-code extraction |
+| `analysis_cache` | no | Cache dashboard data in KV |
+| `orm_log` | no | Log SQL queries |
+
+The GitHub deploy workflow reads the same values from repository secrets/variables: `JWT_SECRET`, `INIT_SECRET`, `RESEND_WEBHOOK_SECRET`, `ADMIN`, `DOMAIN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and optionally `NAME`, `CUSTOM_DOMAIN`, `D1_DATABASE_ID`, `KV_NAMESPACE_ID`, `R2_BUCKET_NAME`, `AI_MODEL`.
+
+### Upgrading an existing deployment
+
+- Existing passwords keep working and are upgraded to PBKDF2 automatically on each user's next login.
+- Telegram "View" links sent before this version stop working; new links expire after 7 days.
+- Users must enter their current password to change it (except accounts created through OAuth sign-in).
+- Set `resend_webhook_secret`, otherwise delivery-status updates from Resend are rejected.
+- Login sessions moved from `localStorage` to an HttpOnly cookie, so everyone has to sign in once after upgrading. `/api/login` no longer returns the token in its response; scripts should use the public API instead.
+- Public API tokens from `/api/public/genToken` now expire (90 days by default; pass `expireDays`, 1–365). Tokens generated before this version keep working until regenerated.
+- The Worker needs the `nodejs_als` compatibility flag (already set in the bundled `wrangler*.toml` files).
+
 ## License
 
-This project is licensed under the [MIT](LICENSE) license.	
-
-
-## Community
-
-[Telegram](https://t.me/cloud_mail_tg)
-
-
-
+This project is licensed under the [MIT](LICENSE) license. Original work © 2025 aslost ([maillab/cloud-mail](https://github.com/maillab/cloud-mail)).

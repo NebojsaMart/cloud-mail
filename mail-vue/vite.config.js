@@ -13,6 +13,19 @@ export default defineConfig(({mode}) => {
             host: true,
             port: 3001,
             hmr: true,
+            // Same-origin proxy so the SameSite session cookie works in development.
+            // Origin is rewritten to the target so the Worker's CSRF check sees its own origin.
+            proxy: {
+                '/api': {
+                    target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8787',
+                    changeOrigin: true,
+                    configure: (proxy) => {
+                        proxy.on('proxyReq', (proxyReq) => {
+                            proxyReq.setHeader('origin', env.VITE_PROXY_TARGET || 'http://127.0.0.1:8787')
+                        })
+                    }
+                }
+            },
         },
         base: env.VITE_STATIC_URL || '/',
         plugins: [vue(),

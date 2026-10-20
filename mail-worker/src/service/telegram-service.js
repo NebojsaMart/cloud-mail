@@ -12,17 +12,21 @@ import emailMsgTemplate from '../template/email-msg';
 import emailTextTemplate from '../template/email-text';
 import emailHtmlTemplate from '../template/email-html';
 import verifyUtils from '../utils/verify-utils';
-import domainUtils from "../utils/domain-uitls";
+import domainUtils from "../utils/domain-utils";
+
+// Links in Telegram messages stop working after this long
+const TG_TOKEN_TYP = 'tg-email';
+const TG_TOKEN_TTL = 60 * 60 * 24 * 7;
 
 const telegramService = {
 
-	async getEmailContent(c, params) {
+	async getEmailContent(c, params, nonce) {
 
 		const { token } = params
 
 		const result = await jwtUtils.verifyToken(c, token);
 
-		if (!result) {
+		if (!result || result.typ !== TG_TOKEN_TYP || !result.emailId) {
 			return emailTextTemplate('Access denied')
 		}
 
@@ -32,7 +36,7 @@ const telegramService = {
 
 			if (emailRow.content) {
 				const { r2Domain } = await settingService.query(c);
-				return emailHtmlTemplate(emailRow.content || '', r2Domain)
+				return emailHtmlTemplate(emailRow.content || '', r2Domain, nonce)
 			} else {
 				return emailTextTemplate(emailRow.text || '')
 			}
@@ -49,7 +53,7 @@ const telegramService = {
 
 		const tgChatIds = tgChatId.split(',');
 
-		const jwtToken = await jwtUtils.generateToken(c, { emailId: email.emailId })
+		const jwtToken = await jwtUtils.generateToken(c, { typ: TG_TOKEN_TYP, emailId: email.emailId }, TG_TOKEN_TTL)
 
 		const webAppUrl = customDomain ? `${domainUtils.toOssDomain(customDomain)}/api/telegram/getEmail/${jwtToken}` : 'https://www.cloudflare.com/404'
 		const inlineKeyboard = [

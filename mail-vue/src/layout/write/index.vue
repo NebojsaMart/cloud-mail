@@ -103,6 +103,7 @@
   </div>
 </template>
 <script setup>
+import {clearSession} from "@/utils/session.js";
 import tinyEditor from '@/components/tiny-editor/index.vue'
 import {h, nextTick, onMounted, onUnmounted, reactive, ref, toRaw, computed} from "vue";
 import {Icon} from "@iconify/vue";
@@ -410,7 +411,7 @@ async function sendEmail() {
       position: 'bottom-right'
     })
     if (e.code === 401) {
-      localStorage.removeItem('token');
+      clearSession();
       router.replace('/login');
     }
     show.value = true

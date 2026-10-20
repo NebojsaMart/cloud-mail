@@ -72,6 +72,9 @@ const zh = {
 	notConfigOss: '对象存储未配置',
 	emailAlreadyBound: '用户已绑定有邮箱',
 	updateEmailStatusFail: '更新邮件状态记录失败',
+	loginFail: '邮箱或密码错误',
+	tooManyAttempts: '失败次数过多，请15分钟后再试',
+	oauthBindExpired: '登录会话已过期，请重新使用第三方登录',
 	perms: {
 		"邮件": "邮件",
 		"邮件发送": "邮件发送",

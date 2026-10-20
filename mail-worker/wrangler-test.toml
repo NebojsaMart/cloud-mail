@@ -1,6 +1,7 @@
 name = "test-mail"
 main = "src/index.js"
 compatibility_date = "2025-06-04"
+compatibility_flags = ["nodejs_als"]
 keep_vars = true
 
 [observability]
@@ -9,11 +10,11 @@ enabled = true
 [[d1_databases]]
 binding = "db"			#D1 binding name, do not change
 database_name = "test-email"		#D1 database name
-database_id = "e65f099d-796d-4eaa-8dff-529b368b20db"		#D1 database id
+database_id = ""		#D1 database id
 
 [[kv_namespaces]]
 binding = "kv"			#KV binding name, do not change
-id = "9be10cd058e04c55b526f8c0c116f50c"					#KV namespace id
+id = ""					#KV namespace id
 
 #(optional)
 #[[r2_buckets]]
@@ -39,7 +40,7 @@ analysis_cache = false			#Enable analytics data caching
 orm_log = false			#Enable SQL logging
 domain = ["example.com"]				#Email domains, multiple allowed. Example: ["example1.com","example2.com"]
 admin = "admin@example.com"				#Admin email	Example: admin@example.com
-jwt_secret = "b7f29a1d-18e2-4d3b-941f-f6b2c97c02fd"			#JWT secret, any random string
+#Set jwt_secret and init_secret with: wrangler secret put <name> --config wrangler-test.toml
 
 [build]
 command = "pnpm --prefix ../mail-vue install && pnpm --prefix ../mail-vue run build"

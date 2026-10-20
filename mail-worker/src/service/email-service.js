@@ -19,7 +19,7 @@ import starService from './star-service';
 import dayjs from 'dayjs';
 import kvConst from '../const/kv-const';
 import { t } from '../i18n/i18n'
-import domainUtils from '../utils/domain-uitls';
+import domainUtils from '../utils/domain-utils';
 import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
@@ -348,7 +348,7 @@ const emailService = {
 
 			emailRow = await this.selectById(c, emailId);
 
-			if (!emailRow) {
+			if (!emailRow || emailRow.userId !== userId) {
 				throw new BizError(t('notExistEmailReply'));
 			}
 

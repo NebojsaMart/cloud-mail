@@ -19,6 +19,8 @@ const en = {
     deleteUser: 'Delete Account',
     deleteUserBtn: 'Delete',
     changePassword: 'Change Password',
+    currentPassword: 'Current password',
+    emptyCurrentPwdMsg: 'Please enter your current password',
     newPassword: 'New password',
     confirmPassword: 'Confirm password',
     add: 'Add',

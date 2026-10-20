@@ -1,6 +1,7 @@
 name = "cloud-mail"
 main = "src/index.js"
 compatibility_date = "2025-06-04"
+compatibility_flags = ["nodejs_als"]
 keep_vars = true
 
 [observability]
@@ -41,7 +42,10 @@ crons = ["0 * * * *"]	#Runs hourly; resetDaySendCount only takes effect at 00:00
 #orm_log = false			#Enable SQL logging
 #domain = []				#Email domains, multiple allowed. Example: ["example1.com","example2.com"]
 #admin = ""					#Admin email	Example: admin@example.com
-#jwt_secret = ""			#JWT secret, any random string
+#jwt_secret = ""			#JWT secret, a long random string. Prefer: wrangler secret put jwt_secret
+#init_secret = ""			#Secret for /api/init, separate from jwt_secret. Prefer: wrangler secret put init_secret
+#resend_webhook_secret = ""	#Resend webhook signing secret (whsec_...); webhooks are rejected without it
+#cors_origin = []			#Extra origins allowed to call the API, e.g. a separate dev server
 
 [build]
 command = "pnpm --prefix ../mail-vue install && pnpm --prefix ../mail-vue run build"

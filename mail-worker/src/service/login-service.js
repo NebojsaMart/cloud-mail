@@ -10,15 +10,15 @@ import userContext from '../security/user-context';
 import verifyUtils from '../utils/verify-utils';
 import accountService from './account-service';
 import settingService from './setting-service';
-import saltHashUtils from '../utils/crypto-utils';
 import cryptoUtils from '../utils/crypto-utils';
 import turnstileService from './turnstile-service';
 import roleService from './role-service';
 import regKeyService from './reg-key-service';
 import dayjs from 'dayjs';
-import { toUtc } from '../utils/date-uitil';
+import { toUtc } from '../utils/date-util';
 import { t } from '../i18n/i18n.js';
 import verifyRecordService from './verify-record-service';
+import loginLimitService from './login-limit-service';
 
 const loginService = {
 
@@ -126,7 +126,7 @@ const loginService = {
 			}
 		}
 
-		const { salt, hash } = await saltHashUtils.hashPassword(password);
+		const { salt, hash } = await cryptoUtils.hashPassword(password);
 
 		const userId = await userService.insert(c, { email, regKeyId,password: hash, salt, type: type || defType });
 
@@ -144,10 +144,6 @@ const loginService = {
 		}
 
 		return {regVerifyOpen}
-
-	},
-
-	async registerVerify() {
 
 	},
 
@@ -207,7 +203,23 @@ const loginService = {
 			throw new BizError(t('emailAndPwdEmpty'));
 		}
 
+		if (!noVerifyPwd) {
+			await loginLimitService.assertAllowed(c, 'login');
+		}
+
 		const userRow = await userService.selectByEmailIncludeDel(c, email);
+
+		if (!noVerifyPwd) {
+			// Same error for unknown email and wrong password, so accounts can't be enumerated
+			// Hash even for unknown emails so response timing doesn't reveal which accounts exist
+			const pwdOk = userRow
+				? await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password)
+				: await cryptoUtils.verifyPassword(password, '', 'pbkdf2$100000$') && false;
+			if (!pwdOk) {
+				await loginLimitService.recordFail(c, 'login');
+				throw new BizError(t('loginFail'));
+			}
+		}
 
 		if (!userRow) {
 			throw new BizError(t('notExistUser'));
@@ -221,8 +233,11 @@ const loginService = {
 			throw new BizError(t('isBanUser'));
 		}
 
-		if (!await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password) && !noVerifyPwd) {
-			throw new BizError(t('IncorrectPwd'));
+		if (!noVerifyPwd) {
+			await loginLimitService.clear(c, 'login');
+			if (cryptoUtils.needsRehash(userRow.password)) {
+				await userService.updatePassword(c, userRow.userId, password);
+			}
 		}
 
 		const uuid = uuidv4();
@@ -257,11 +272,13 @@ const loginService = {
 	},
 
 	async logout(c, userId) {
-		const token =userContext.getToken(c);
+		const token = await userContext.getToken(c);
 		const authInfo = await c.env.kv.get(KvConst.AUTH_INFO + userId, { type: 'json' });
-		const index = authInfo.tokens.findIndex(item => item === token);
-		authInfo.tokens.splice(index, 1);
-		await c.env.kv.put(KvConst.AUTH_INFO + userId, JSON.stringify(authInfo));
+		if (!authInfo) {
+			return;
+		}
+		authInfo.tokens = authInfo.tokens.filter(item => item !== token);
+		await c.env.kv.put(KvConst.AUTH_INFO + userId, JSON.stringify(authInfo), { expirationTtl: constant.TOKEN_EXPIRE });
 	}
 
 };

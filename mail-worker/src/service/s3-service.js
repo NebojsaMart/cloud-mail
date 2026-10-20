@@ -1,6 +1,7 @@
+import objHeaderUtils from '../utils/obj-header-utils';
 import { S3Client, PutObjectCommand, DeleteObjectsCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import settingService from './setting-service';
-import domainUtils from '../utils/domain-uitls';
+import domainUtils from '../utils/domain-utils';
 import { settingConst } from '../const/entity-const';
 const s3Service = {
 
@@ -84,11 +85,11 @@ const s3Service = {
 		}));
 
 		return new Response(result.Body, {
-			headers: {
-				'Content-Type': result.ContentType || 'application/octet-stream',
-				'Content-Disposition': result.ContentDisposition || null,
-				'Cache-Control': result.CacheControl || null
-			}
+			headers: objHeaderUtils.build({
+				contentType: result.ContentType,
+				contentDisposition: result.ContentDisposition,
+				cacheControl: result.CacheControl
+			})
 		});
 	},
 

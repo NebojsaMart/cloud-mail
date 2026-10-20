@@ -1,5 +1,11 @@
 import { UAParser } from 'ua-parser-js';
 const reqUtils = {
+	// Extra origins (besides the app's own) allowed to call the API, from the cors_origin var
+	allowedOrigins(c) {
+		const allowed = c.env.cors_origin || [];
+		return typeof allowed === 'string' ? allowed.split(',').map(item => item.trim()) : allowed;
+	},
+
 	getIp(c) {
 		return  c.req.header('CF-Connecting-IP') ||
 			c.req.header('X-Forwarded-For') ||

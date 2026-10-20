@@ -1,14 +1,15 @@
+import cryptoUtils from '../utils/crypto-utils';
 import settingService from '../service/setting-service';
 import emailUtils from '../utils/email-utils';
 import {emailConst} from "../const/entity-const";
 
 const dbInit = {
-	async init(c) {
+	async init(c, secret) {
 
-		const secret = c.req.param('secret');
+		const initSecret = c.env.init_secret || c.env.jwt_secret;
 
-		if (secret !== c.env.jwt_secret) {
-			return c.text('❌ JWT secret mismatch');
+		if (!secret || !initSecret || !cryptoUtils.timingSafeEqual(secret, initSecret)) {
+			return c.text('❌ Init secret mismatch', 403);
 		}
 
 		await this.intDB(c);

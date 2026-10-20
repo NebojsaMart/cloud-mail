@@ -144,13 +144,14 @@
         </el-button>
       </div>
     </el-dialog>
-    <a v-show="settingStore.settings.projectLink" class="github" href="https://github.com/maillab/cloud-mail">
+    <a v-show="settingStore.settings.projectLink" class="github" href="https://github.com/NebojsaMart/cloud-mail">
       <Icon icon="mingcute:github-line" color="#1890ff" width="20" height="20" />
     </a>
   </div>
 </template>
 
 <script setup>
+import {markLoggedIn} from "@/utils/session.js";
 import router from "@/router";
 import {useRoute} from "vue-router";
 import {computed, nextTick, reactive, ref} from "vue";
@@ -167,7 +168,7 @@ import {cvtR2Url} from "@/utils/convert.js";
 import {loginUserInfo} from "@/request/my.js";
 import {permsToRouter} from "@/perm/perm.js";
 import {useI18n} from "vue-i18n";
-import {oauthBindUser, oauthLinuxDoLogin, oauthGithubLogin, oauthGoogleLogin} from "@/request/ouath.js";
+import {oauthBindUser, oauthLinuxDoLogin, oauthGithubLogin, oauthGoogleLogin} from "@/request/oauth.js";
 
 const {t} = useI18n();
 const accountStore = useAccountStore();
@@ -183,11 +184,14 @@ const show = ref('login')
 
 const oauthKeys = ['linuxdo', 'github', 'google']
 
+// The provider is only trusted when the returned state matches the random value saved before redirecting,
+// so another site can't push its own authorization code into this login (login CSRF)
 const oauthProvider = computed(() => {
-  const fromState = route.query.state
-  if (oauthKeys.includes(fromState)) return fromState
-  const fromStore = sessionStorage.getItem('oauthProvider')
-  return oauthKeys.includes(fromStore) ? fromStore : null
+  const state = route.query.state
+  const savedState = sessionStorage.getItem('oauthState')
+  if (!state || !savedState || state !== savedState) return null
+  const provider = state.split('.')[0]
+  return oauthKeys.includes(provider) ? provider : null
 })
 
 const oauthProviders = computed(() => {
@@ -201,7 +205,7 @@ const oauthProviders = computed(() => {
 
 const bindForm = reactive({
   email: '',
-  oauthUserId: '',
+  bindTicket: '',
   code: ''
 })
 
@@ -288,11 +292,13 @@ const getEmailName = (email) => {
 function oauthLogin(provider) {
   const clientId = settingStore.settings[provider + 'ClientId']
   const redirectUri = encodeURIComponent(window.location.origin + '/login')
-  sessionStorage.setItem('oauthProvider', provider)
+  const random = crypto.getRandomValues(new Uint8Array(16)).reduce((str, b) => str + b.toString(16).padStart(2, '0'), '')
+  const state = `${provider}.${random}`
+  sessionStorage.setItem('oauthState', state)
   const authorizeUrls = {
-    linuxdo: `https://connect.linux.do/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid+profile+email&state=${provider}`,
-    github: `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email&state=${provider}`,
-    google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid+profile+email&state=${provider}`,
+    linuxdo: `https://connect.linux.do/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid+profile+email&state=${state}`,
+    github: `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email&state=${state}`,
+    google: `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid+profile+email&state=${state}`,
   }
   window.location.href = authorizeUrls[provider]
 }
@@ -313,14 +319,14 @@ async function oauthGetUser() {
 
   const provider = oauthProvider.value
   oauthLoading.value = true
-  sessionStorage.removeItem('oauthProvider')
+  sessionStorage.removeItem('oauthState')
   window.history.replaceState({}, '', window.location.origin + window.location.pathname)
 
   loginFns[provider](code, window.location.origin + '/login').then(data => {
 
-    bindForm.oauthUserId = data.userInfo.oauthUserId;
+    bindForm.bindTicket = data.bindTicket;
 
-    if (!data.token) {
+    if (!data.loggedIn) {
       showBindForm.value = true
       oauthLoading.value = false
       ElMessage({
@@ -332,7 +338,7 @@ async function oauthGetUser() {
       return;
     }
 
-    saveToken(data.token);
+    saveToken();
   }).catch(() => {
     oauthLoading.value = false
   })
@@ -387,11 +393,11 @@ function bind() {
 
   }
 
-  const form = {email, oauthUserId: bindForm.oauthUserId, code: bindForm.code}
+  const form = {email, bindTicket: bindForm.bindTicket, code: bindForm.code}
 
   bindLoading.value = true
   oauthBindUser(form).then(data => {
-    saveToken(data.token)
+    saveToken()
   }).catch(() => {
     bindLoading.value = false
   })
@@ -432,14 +438,14 @@ const submit = () => {
 
   loginLoading.value = true
   login(email, form.password).then(async data => {
-    await saveToken(data.token)
+    await saveToken()
   }).finally(() => {
     loginLoading.value = false
   })
 }
 
-async function saveToken(token) {
-  localStorage.setItem('token', token)
+async function saveToken() {
+  markLoggedIn()
   refreshWebsiteConfig()
   const user = await loginUserInfo();
   accountStore.currentAccountId = user.account.accountId;

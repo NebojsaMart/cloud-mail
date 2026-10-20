@@ -3,13 +3,18 @@ import setting from '../entity/setting';
 import orm from '../entity/orm';
 import {verifyRecordType} from '../const/entity-const';
 import fileUtils from '../utils/file-utils';
+import objHeaderUtils from '../utils/obj-header-utils';
 import r2Service from './r2-service';
 import constant from '../const/constant';
 import BizError from '../error/biz-error';
 import {t} from '../i18n/i18n'
 import verifyRecordService from './verify-record-service';
 import userContext from '../security/user-context';
-import domainUtils from '../utils/domain-uitls';
+import domainUtils from '../utils/domain-utils';
+
+// Show only the last 4 characters, enough to recognise which key is configured
+const maskSecret = (value) => value ? `******${value.slice(-4)}` : null;
+const isMasked = (value) => typeof value === 'string' && value.startsWith('******');
 
 const settingService = {
 
@@ -78,15 +83,18 @@ const settingService = {
 			settingRow.siteKey = settingRow.siteKey ? `${settingRow.siteKey.slice(0, 6)}******` : null;
 		}
 
-		settingRow.secretKey = settingRow.secretKey ? `${settingRow.secretKey.slice(0, 6)}******` : null;
+		settingRow.secretKey = maskSecret(settingRow.secretKey);
 
 		Object.keys(settingRow.resendTokens).forEach(key => {
-			settingRow.resendTokens[key] = `${settingRow.resendTokens[key].slice(0, 12)}******`;
+			settingRow.resendTokens[key] = maskSecret(settingRow.resendTokens[key]);
 		});
 
-		settingRow.s3AccessKey = settingRow.s3AccessKey ? `${settingRow.s3AccessKey.slice(0, 12)}******` : null;
-		settingRow.s3SecretKey = settingRow.s3SecretKey ? `${settingRow.s3SecretKey.slice(0, 12)}******` : null;
-		settingRow.tgBotToken = settingRow.tgBotToken ? `${settingRow.tgBotToken.slice(0, 20)}******` : null;
+		settingRow.s3AccessKey = maskSecret(settingRow.s3AccessKey);
+		settingRow.s3SecretKey = maskSecret(settingRow.s3SecretKey);
+		settingRow.tgBotToken = maskSecret(settingRow.tgBotToken);
+		settingRow.linuxdoClientSecret = maskSecret(settingRow.linuxdoClientSecret);
+		settingRow.githubClientSecret = maskSecret(settingRow.githubClientSecret);
+		settingRow.googleClientSecret = maskSecret(settingRow.googleClientSecret);
 		settingRow.hasR2 = !!c.env.r2
 		settingRow.hasCfEmail = !!c.env.email
 
@@ -112,6 +120,15 @@ const settingService = {
 
 	async set(c, params) {
 		const settingData = await this.query(c);
+
+		// A masked value means the admin didn't change that secret, so keep the stored one
+		Object.keys(params).forEach(key => {
+			if (isMasked(params[key])) delete params[key];
+		});
+		Object.keys(params.resendTokens || {}).forEach(domain => {
+			if (isMasked(params.resendTokens[domain])) delete params.resendTokens[domain];
+		});
+
 		let resendTokens = { ...settingData.resendTokens, ...params.resendTokens };
 		Object.keys(resendTokens).forEach(domain => {
 			if (!resendTokens[domain]) delete resendTokens[domain];
@@ -170,7 +187,7 @@ const settingService = {
 			await r2Service.putObj(c, background, arrayBuffer, {
 				contentType: file.type,
 				cacheControl: `public, max-age=31536000, immutable`,
-				contentDisposition: `inline; filename="${file.name}"`
+				contentDisposition: objHeaderUtils.contentDisposition('inline', file.name)
 			});
 
 		}

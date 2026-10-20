@@ -72,6 +72,9 @@ const en = {
 	notConfigOss: 'Object storage not configured',
 	emailAlreadyBound: 'User already has a bound email',
 	updateEmailStatusFail: 'Failed to update email status record',
+	loginFail: 'Incorrect email or password',
+	tooManyAttempts: 'Too many failed attempts. Please try again in 15 minutes',
+	oauthBindExpired: 'Sign-in session expired. Please sign in with your provider again',
 	perms: {
 		"邮件": "Emails",
 		"邮件发送": "Send Email",

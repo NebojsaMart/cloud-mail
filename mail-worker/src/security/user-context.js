@@ -1,5 +1,5 @@
 import JwtUtils from '../utils/jwt-utils';
-import constant from '../const/constant';
+import sessionCookie from './session-cookie';
 
 const userContext = {
 	getUserId(c) {
@@ -10,10 +10,17 @@ const userContext = {
 		return c.get('user');
 	},
 
+	// Session id (the uuid inside the JWT) of the current request, or undefined when not logged in
 	async getToken(c) {
-		const jwt = c.req.header(constant.TOKEN_HEADER);
-		const result = await JwtUtils.verifyToken(c,jwt);
-		return result?.token;
+		if (c.get('token')) {
+			return c.get('token');
+		}
+		const { jwt } = sessionCookie.read(c);
+		if (!jwt) {
+			return undefined;
+		}
+		const result = await JwtUtils.verifyToken(c, jwt);
+		return result && !result.typ ? result.token : undefined;
 	},
 };
 export default userContext;

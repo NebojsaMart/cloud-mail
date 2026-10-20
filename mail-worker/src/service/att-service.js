@@ -7,8 +7,9 @@ import fileUtils from '../utils/file-utils';
 import { attConst } from '../const/entity-const';
 import { parseHTML } from 'linkedom';
 import { v4 as uuidv4 } from 'uuid';
-import domainUtils from '../utils/domain-uitls';
+import domainUtils from '../utils/domain-utils';
 import settingService from "./setting-service";
+import objHeaderUtils from '../utils/obj-header-utils';
 
 const attService = {
 
@@ -21,9 +22,9 @@ const attService = {
 			}
 
 			if (!attachment.contentId) {
-				metadate.contentDisposition = `attachment;filename=${attachment.filename}`
+				metadate.contentDisposition = objHeaderUtils.contentDisposition('attachment', attachment.filename)
 			} else {
-				metadate.contentDisposition = `inline;filename=${attachment.filename}`
+				metadate.contentDisposition = objHeaderUtils.contentDisposition('inline', attachment.filename)
 				metadate.cacheControl = `max-age=259200`
 			}
 
@@ -167,7 +168,7 @@ const attService = {
 		for (let att of attList) {
 			await r2Service.putObj(c, att.key, att.buff, {
 				contentType: att.type,
-				contentDisposition: `attachment;filename=${att.filename}`
+				contentDisposition: objHeaderUtils.contentDisposition('attachment', att.filename)
 			});
 		}
 
@@ -186,7 +187,7 @@ const attService = {
 			await r2Service.putObj(c, attData.key, attData.buff, {
 				contentType: attData.mimeType,
 				cacheControl: `max-age=259200`,
-				contentDisposition: `inline;filename=${attData.filename}`
+				contentDisposition: objHeaderUtils.contentDisposition('inline', attData.filename)
 			});
 			delete attData.buff;
 		}

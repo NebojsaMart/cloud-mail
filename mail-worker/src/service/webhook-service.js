@@ -1,4 +1,4 @@
-import domainUtils from '../utils/domain-uitls';
+import domainUtils from '../utils/domain-utils';
 
 const webhookService = {
 

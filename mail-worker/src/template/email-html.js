@@ -1,11 +1,10 @@
-import { parseHTML } from 'linkedom';
-import domainUtils from '../utils/domain-uitls';
+import domainUtils from '../utils/domain-utils';
+import htmlSanitizeUtils from '../utils/html-sanitize-utils';
 
-export default function emailHtmlTemplate(html, domain) {
+// nonce must be the same value sent in the page's Content-Security-Policy header
+export default function emailHtmlTemplate(html, domain, nonce) {
 
-	const { document } = parseHTML(html);
-	document.querySelectorAll('script').forEach(script => script.remove());
-	html = document.toString();
+	html = htmlSanitizeUtils.sanitize(html);
 	html = html.replace(/{{domain}}/g, domainUtils.toOssDomain(domain) + '/');
 	const safeHtmlJson = JSON.stringify(html).replace(/</g, '\\u003C');
 
@@ -41,7 +40,7 @@ export default function emailHtmlTemplate(html, domain) {
         <div id='container' class='content-html'></div>
     </div>
 
-    <script>
+    <script nonce='${nonce}'>
 
         function renderHTML(html) {
             const container = document.getElementById('container');
@@ -50,7 +49,7 @@ export default function emailHtmlTemplate(html, domain) {
             // Extract the style attribute of <body>
             const bodyStyleRegex = /<body[^>]*style="([^"]*)"[^>]*>/i;
             const bodyStyleMatch = html.match(bodyStyleRegex);
-            const bodyStyle = bodyStyleMatch ? bodyStyleMatch[1] : '';
+            const bodyStyle = bodyStyleMatch ? bodyStyleMatch[1].replace(/[<>{}]/g, '') : '';
 
             // Remove the <body> tag
             const cleanedHtml = html.replace(/<\\/?body[^>]*>/gi, '');

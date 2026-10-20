@@ -1,11 +1,9 @@
-import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+import { defineConfig } from 'vitest/config';
 
-export default defineWorkersConfig({
+// The worker code only uses web-standard APIs (fetch, WebCrypto), so tests run in plain Node
+export default defineConfig({
 	test: {
-		poolOptions: {
-			workers: {
-				wrangler: { configPath: './wrangler.jsonc' },
-			},
-		},
-	},
+		environment: 'node',
+		include: ['test/**/*.spec.js']
+	}
 });

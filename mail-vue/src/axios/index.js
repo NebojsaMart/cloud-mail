@@ -2,6 +2,7 @@ import axios from "axios";
 import router from "@/router";
 import i18n from "@/i18n/index.js";
 import {useSettingStore} from "@/store/setting.js";
+import {clearSession} from "@/utils/session.js";
 
 let http = axios.create({
     baseURL: import.meta.env.VITE_BASE_URL
@@ -9,7 +10,6 @@ let http = axios.create({
 
 http.interceptors.request.use(config => {
     const { lang } = useSettingStore();
-    config.headers.Authorization = `${localStorage.getItem('token')}`
     config.headers['accept-language'] = lang
     return config
 })
@@ -33,7 +33,7 @@ http.interceptors.response.use((res) => {
                     grouping: true,
                     repeatNum: -4,
                 })
-                localStorage.removeItem('token')
+                clearSession()
                 router.replace('/login')
                 reject(data)
             } else if (data.code === 403) {
