@@ -33,8 +33,18 @@ const dbInit = {
 		await this.v3_1DB(c);
 		await this.v3_2DB(c);
 		await this.v3_3DB(c);
+		await this.englishDefaultRoleDB(c);
 		await settingService.refresh(c);
 		return c.text('success');
+	},
+
+	// Rename the seeded default role to English, unless an admin has already changed it
+	async englishDefaultRoleDB(c) {
+		try {
+			await c.env.db.prepare(`UPDATE role SET name = 'User', description = 'Standard permissions only' WHERE role_id = 1 AND name = '普通用户' AND description = '只有普通使用权限';`).run();
+		} catch (e) {
+			console.warn(`Skipping data: ${e.message}`);
+		}
 	},
 
 	async v3_3DB(c) {
@@ -569,7 +579,7 @@ const dbInit = {
         INSERT INTO role (
           role_id, name, key, create_time, sort, description, user_id, is_default, send_count, send_type, account_count
         ) VALUES (
-          1, '普通用户', NULL, '0000-00-00 00:00:00', 0, '只有普通使用权限', 0, 1, NULL, 'ban', 10
+          1, 'User', NULL, '0000-00-00 00:00:00', 0, 'Standard permissions only', 0, 1, NULL, 'ban', 10
         )
       `).run();
 		}

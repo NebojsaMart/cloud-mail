@@ -65,7 +65,15 @@ jobs:
         run: |
           
           echo "🔐 Starting environment setup..."
-          
+
+          # Secrets pasted into GitHub often end with a newline or spaces, which break the sed substitutions below.
+          # Trim them here and pass the clean values on to the later steps.
+          for VAR in NAME CUSTOM_DOMAIN DOMAIN ADMIN JWT_SECRET INIT_SECRET RESEND_WEBHOOK_SECRET D1_DATABASE_ID KV_NAMESPACE_ID R2_BUCKET_NAME PROJECT_LINK AI_MODEL; do
+            CLEAN=$(printf '%s' "${!VAR}" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            printf -v "$VAR" '%s' "$CLEAN"
+            echo "$VAR=$CLEAN" >> "$GITHUB_ENV"
+          done
+
           if [ -z "$JWT_SECRET" ] || grep -q '[?%#/\\]' <<< "$JWT_SECRET"; then
             echo "❌ JWT_SECRET variable is empty or contains invalid characters (?, %, #, /, \\)."
             exit 1
